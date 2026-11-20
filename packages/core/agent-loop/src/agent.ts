@@ -339,7 +339,7 @@ export class ReactLoopAgent implements Agent {
     signal.throwIfAborted()
     const turn = phase.turn + 1
     try {
-      this.session.append('turn/start', { turn })
+      this.session.append('turn/start', { turn })   // 1.回合开始 --> 往日志里写一个事件
     } catch (error: unknown) {
       this.throwError(error)
     }
@@ -347,11 +347,11 @@ export class ReactLoopAgent implements Agent {
     let turnEnds: TurnEndReason | null = null
     let target: InboxTarget = 'next-turn'
     try {
-      while (true) {
+      while (true) {    // 2.循环开始(一个turn可以跑多个step)
         signal.throwIfAborted()
         const step = phase.step + 1
-        const decision = await this.preStep(target, { turn, step })
-        if (decision.kind === 'reject') {
+        const decision = await this.preStep(target, { turn, step })   // 认领输入+组装prompt
+        if (decision.kind === 'reject') {   // 这里可以拒绝,就不需要llm
           turnEnds = { kind: 'blocked' }
           return false
         }
@@ -364,7 +364,7 @@ export class ReactLoopAgent implements Agent {
             return false
           }
           signal.throwIfAborted()
-          this.session.append('step/start', { turn, step })
+          this.session.append('step/start', { turn, step })   // 1.step开始,写入日志
           phase.step = step
           const toolRecovery = new ToolCallRecovery()
           const stopRecovery = this.ctx.on('session/event', (session, event) => {
@@ -373,7 +373,7 @@ export class ReactLoopAgent implements Agent {
           try {
             // max-tokens is sticky: once any step hits the ceiling, later steps
             // that complete normally must not downgrade the turn outcome.
-            const stepEnd = await this.step(decision)
+            const stepEnd = await this.step(decision)   // 核心:模型请求+工具调用
             // max-tokens stays sticky: a later completed step must not
             // downgrade the turn outcome.
             if (turnEnds === null || turnEnds.kind !== 'max-tokens') turnEnds = stepEnd
@@ -391,7 +391,7 @@ export class ReactLoopAgent implements Agent {
             throw error
           } finally {
             stopRecovery()
-            this.session.append('step/end', { turn, step })
+            this.session.append('step/end', { turn, step })   // step 结束
           }
         } finally {
           // Admission closes once the step's tool batch settles or no step opens.
